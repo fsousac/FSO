@@ -3,69 +3,66 @@
 
 typedef struct
 {
-    int pid;
-    long long remaining;
+    int id;
+    int tempo;
 } Process;
 
-int main()
+static void round_robin(Process processes[], int N, int quantum)
 {
-    int N, T;
-    scanf("%d %d", &N, &T);
-
-    Process *queue = (Process *)malloc(N * sizeof(Process));
-    int *finish_order = (int *)malloc(N * sizeof(int));
-    long long *finish_time = (long long *)malloc(N * sizeof(long long));
-    int finished = 0;
-
-    // Leitura dos processos
-    for (int i = 0; i < N; i++)
+    if (N == 1)
     {
-        int pid, t;
-        scanf("%d %d", &pid, &t);
-        queue[i].pid = pid;
-        queue[i].remaining = (long long)t * 1000; // Converter para milissegundos
+        printf("%d (%d)\n", processes[0].id, processes[0].tempo);
+        return;
     }
 
-    long long current_time = 0;
-    int active = N;  // Número de processos ativos
-    int current = 0; // Índice do processo atual
+    int exec = 0, atual = 0, fatia;
+    int max = N - 1;
 
-    // Loop principal otimizado
-    while (active > 0)
+    while (max > 0)
     {
-        Process *p = &queue[current];
-
-        if (p->remaining > 0)
+        fatia = processes[atual].tempo < quantum ? processes[atual].tempo : quantum;
+        exec += fatia;
+        processes[atual].tempo -= fatia;
+        if (processes[atual].tempo == 0)
         {
-            // Calcula o quantum real
-            long long slice = (p->remaining < T) ? p->remaining : T;
-            current_time += slice;
-            p->remaining -= slice;
+            printf("%d (%d)\n", processes[atual].id, exec);
 
-            // Verifica se o processo terminou
-            if (p->remaining == 0)
+            for (int i = atual; i < max; ++i)
             {
-                finish_order[finished] = p->pid;
-                finish_time[finished] = current_time;
-                finished++;
-                active--;
+                processes[i] = processes[i + 1];
             }
+            max--;
+        }
+        else
+        {
+            atual++;
         }
 
-        // Move para o próximo processo
-        current = (current + 1) % N;
+        if (atual > max)
+        {
+            atual = 0;
+        }
     }
 
-    // Impressão dos resultados
-    for (int i = 0; i < finished; i++)
+    printf("%d (%d)\n", processes[0].id, exec + processes[0].tempo);
+}
+
+int main(void)
+{
+    int N;
+    if (scanf("%d", &N) != 1 || N <= 0)
+        return 0;
+
+    int quantum;
+    scanf("%d", &quantum);
+
+    Process processes[100];
+    for (int i = 0; i < N; ++i)
     {
-        printf("%d (%lld)\n", finish_order[i], finish_time[i]);
+        scanf("%d %d", &processes[i].id, &processes[i].tempo);
+        processes[i].tempo *= 1000;
     }
 
-    // Liberação de memória
-    free(queue);
-    free(finish_order);
-    free(finish_time);
-
+    round_robin(processes, N, quantum);
     return 0;
 }

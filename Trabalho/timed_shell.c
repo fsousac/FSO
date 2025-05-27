@@ -1,83 +1,46 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
 #include <sys/wait.h>
 #include <sys/time.h>
+#include <string.h>
 #include <errno.h>
-
-#define MAX_STR 256
-
-double diff_time(struct timeval *start, struct timeval *end)
-{
-    double s = (double)(end->tv_sec - start->tv_sec);
-    double us = (double)(end->tv_usec - start->tv_usec) / 1000000.0;
-    return s + us;
-}
 
 int main()
 {
-    char path[MAX_STR], arg[MAX_STR];
-    struct timeval total_start, total_end;
+    char bin[256], param[256];
+    struct timeval t0, t1, t2, t3;
     double total = 0.0;
+    int ret, child;
 
-    gettimeofday(&total_start, NULL);
+    gettimeofday(&t0, NULL);
 
-    while (scanf("%255s %255s", path, arg) == 2)
+    while (scanf("%255s %255s", bin, param) == 2)
     {
-        struct timeval start, end;
-        gettimeofday(&start, NULL);
-
-        pid_t pid = fork();
-        int status;
-        if (pid == 0)
+        gettimeofday(&t2, NULL);
+        child = fork();
+        if (child == 0)
         {
-            execl(path, path, arg, (char *)NULL);
-            // Se execl falhar, imprime erro e sai com 2
-            fprintf(stderr, "> Erro: %s\n", strerror(errno));
+            execl(bin, bin, param, (char *)NULL);
+            printf("> Erro: %s\n", strerror(errno));
             exit(2);
-        }
-        else if (pid > 0)
-        {
-            waitpid(pid, &status, 0);
-            gettimeofday(&end, NULL);
-            double elapsed = diff_time(&start, &end);
-            // Arredondar para 1 casa decimal sem math.h
-            elapsed = ((int)(elapsed * 10 + 0.5)) / 10.0;
-
-            if (WIFEXITED(status))
-            {
-                int code = WEXITSTATUS(status);
-                // Se o filho saiu com 2, pode ter sido erro de exec
-                if (code == 2 && access(path, X_OK) != 0)
-                {
-                    // Já imprimiu erro no filho, só imprime tempo 0
-                    printf("> Demorou 0.0 segundos, retornou 2\n");
-                    total += 0.0;
-                }
-                else
-                {
-                    printf("> Demorou %.1f segundos, retornou %d\n", elapsed, code);
-                    total += elapsed;
-                }
-            }
-            else
-            {
-                printf("> Demorou %.1f segundos, retornou %d\n", elapsed, status);
-                total += elapsed;
-            }
         }
         else
         {
-            // Erro no fork
-            fprintf(stderr, "> Erro: %s\n", strerror(errno));
+            waitpid(child, &ret, 0);
+            gettimeofday(&t3, NULL);
+            double dt = (t3.tv_sec - t2.tv_sec) + (t3.tv_usec - t2.tv_usec) / 1e6;
+            dt = ((int)(dt * 10 + 0.5)) / 10.0;
+            int code = WIFEXITED(ret) ? WEXITSTATUS(ret) : ret;
+            printf("> Demorou %.1f segundos, retornou %d\n", dt, code);
+            total += dt;
         }
     }
 
-    gettimeofday(&total_end, NULL);
-    double elapsed_total = diff_time(&total_start, &total_end);
-    elapsed_total = ((int)(elapsed_total * 10 + 0.5)) / 10.0;
-    printf(">> O tempo total foi de %.1f segundos\n", elapsed_total);
+    gettimeofday(&t1, NULL);
+    double ttotal = (t1.tv_sec - t0.tv_sec) + (t1.tv_usec - t0.tv_usec) / 1e6;
+    ttotal = ((int)(ttotal * 10 + 0.5)) / 10.0;
+    printf(">> O tempo total foi de %.1f segundos\n", ttotal);
 
     return 0;
 }
