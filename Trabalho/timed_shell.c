@@ -1,46 +1,56 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
+#include <sys/types.h>
 #include <sys/wait.h>
-#include <sys/time.h>
+#include <unistd.h>
 #include <string.h>
 #include <errno.h>
+#include <sys/time.h>
+#include <time.h>
+#include <sys/shm.h>
 
-int main()
+int main(void)
 {
-    char bin[256], param[256];
-    struct timeval t0, t1, t2, t3;
-    double total = 0.0;
-    int ret, child;
 
-    gettimeofday(&t0, NULL);
+    char cmd[255], arg[255];
+    pid_t pid = 1;
+    struct timeval global_start, global_end, temp_start, temp_end;
+    int status;
 
-    while (scanf("%255s %255s", bin, param) == 2)
+    gettimeofday(&global_start, NULL);
+
+    while (scanf("%s %s", cmd, arg) != EOF)
     {
-        gettimeofday(&t2, NULL);
-        child = fork();
-        if (child == 0)
+        fflush(stdout);
+        pid = fork();
+        gettimeofday(&temp_start, NULL);
+
+        if (pid == 0)
         {
-            execl(bin, bin, param, (char *)NULL);
-            printf("> Erro: %s\n", strerror(errno));
-            exit(2);
+            execl(cmd, cmd, arg, NULL);
+            if (errno != 0)
+                printf("> Erro: %s\n", strerror(errno));
+            fflush(stdout);
+            int erro = errno;
+            fclose(stdin);
+            exit(erro);
         }
         else
         {
-            waitpid(child, &ret, 0);
-            gettimeofday(&t3, NULL);
-            double dt = (t3.tv_sec - t2.tv_sec) + (t3.tv_usec - t2.tv_usec) / 1e6;
-            dt = ((int)(dt * 10 + 0.5)) / 10.0;
-            int code = WIFEXITED(ret) ? WEXITSTATUS(ret) : ret;
-            printf("> Demorou %.1f segundos, retornou %d\n", dt, code);
-            total += dt;
+            waitpid(pid, &status, WUNTRACED);
+            int erro = WEXITSTATUS(status);
+            gettimeofday(&temp_end, NULL);
+
+            double tempo_execucao = (temp_end.tv_sec - temp_start.tv_sec) + 1e-6 * (temp_end.tv_usec - temp_start.tv_usec);
+            printf("> Demorou %0.1lf segundos, retornou %i\n", tempo_execucao, erro);
+            fflush(stdout);
         }
     }
+    gettimeofday(&global_end, NULL);
 
-    gettimeofday(&t1, NULL);
-    double ttotal = (t1.tv_sec - t0.tv_sec) + (t1.tv_usec - t0.tv_usec) / 1e6;
-    ttotal = ((int)(ttotal * 10 + 0.5)) / 10.0;
-    printf(">> O tempo total foi de %.1f segundos\n", ttotal);
+    double tempo_total = (global_end.tv_sec - global_start.tv_sec) + 1e-6 * (global_end.tv_usec - global_start.tv_usec);
+    if (pid != 0)
+        printf(">> O tempo total foi de %0.1lf segundos\n", tempo_total);
 
     return 0;
 }
